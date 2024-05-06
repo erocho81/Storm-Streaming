@@ -1,0 +1,66 @@
+name: "cuentaPalabras"
+config:
+ # Se indican el número de workers que se utilizarán
+ topology.workers: 1
+
+# Declaración del Spout que envia frase
+spouts:
+ - id: "spout-frase" 
+   className: "org.apache.storm.flux.wrappers.spouts.FluxShellSpout"
+   constructorArgs:
+     # Comando a ejecutar
+     - ["python3", "spoutfrase.py"]
+     # Campos de salida del spout
+     - ["frase"]
+   # paralelismo
+   parallelism: 1
+
+# Declaraciones de los Bolt: el que divide la frase en palabras y el que cuenta 
+bolts:
+ - id: "bolt-divide"
+   className: "org.apache.storm.flux.wrappers.bolts.FluxShellBolt"
+   constructorArgs:
+     # Comando a ejecutar
+     - ["python3", "boltdivide.py"]
+     # Campos de salida del bolt
+     - ["palabra"]
+   parallelism: 1
+
+ - id: "bolt-cuenta"
+   className: "org.apache.storm.flux.wrappers.bolts.FluxShellBolt"
+   constructorArgs:
+     # Comando a ejecutar
+     - ["python3", "boltcuenta.py"]
+     # Campos de salida del bolt
+     - ["palabra","cuenta"]
+   parallelism: 1
+
+ # Logging
+ - id: "log"
+   className: "org.apache.storm.flux.wrappers.bolts.LogInfoBolt"
+   parallelism: 1
+
+# Declaraciones de Stream 
+streams:
+ - name: "spout-frase --> bolt-divide" # sólo es informativo
+   # Stream emisor
+   from: "spout-frase"
+   # Stream consumidor
+   to: "bolt-divide"
+   # Agrupamiento
+   grouping:
+     type: SHUFFLE
+
+ - name: "bolt-divide -> bolt-cuenta"
+   from: "bolt-divide"
+   to: "bolt-cuenta"
+   grouping:
+     type: FIELDS
+     # Campos por los que se agrupa
+     args: ["palabra"]
+
+ - name: "bolt-cuenta -> log"
+   from: "bolt-cuenta"
+   to: "log"
+   grouping:
+     type: SHUFFLE
